@@ -183,7 +183,7 @@
 
   <!-- Select Keys Page -->
   <wizardpage id="pgKeySel" pageid="pgKeySel"
-              next="pgComplete"
+              next="pgUpload"
               onpageshow="onPageShow(); displayKeySel()"
               label="&enigmail.setupWiz.pgKeySel.title;"
               description="&enigmail.setupWiz.pgKeySel.subtitle;">
@@ -349,7 +349,7 @@
    <!-- Key Create Progress Page -->
   <wizardpage id="pgKeygen" pageid="pgKeygen"
               onpageshow="wizardGenKey()"
-              next="pgComplete"
+              next="pgUpload"
               label="&enigmail.setupWiz.pgKeygen.title;"
               description="&enigmail.setupWiz.pgKeygen.subtitle;">
     <groupbox id="keygenConsoleBox" orient="vertical" flex="1">
@@ -380,9 +380,34 @@
 
   </wizardpage>
 
+  <!-- Optional Key Upload Page -->
+  <wizardpage id="pgUpload" pageid="pgUpload"
+              onpageshow="wizardUpload()"
+              next="pgComplete"
+              label="&enigmail.setupWiz.pgUpload.title;"
+              description="&enigmail.setupWiz.pgUpload.subtitle;">
+    <groupbox id="keygenConsoleBox" orient="vertical" flex="1">
+			<vbox>
+				<description>&enigmail.keyUpload.desc;</description>
+				<separator/>
+				<deck id="keyUploadWksDeck">
+					<hbox align="center">
+						<label value="Checking whenever your email provider is supported"/>
+						<spacer width="5px"/>
+						<progressmeter mode="undetermined"/>
+					</hbox>
+					<checkbox label="Upload to the keyserver of your mail provider" checked="true" id="keyUploadWks"/>
+				</deck>
+				<spacer height="5px"/>
+				<checkbox label="Upload the the global OpenPGP keyservers" checked="false" id="keyUploadSks"/>
+				<description>Uploading your key to the global OpenPGP key servers allows users of legacy mail apps to send you encrypted or signed messages. Keep in mind that everybody can read everything uploaded to these key servers (think of it like a phonebook). Do not upload your key if you want to keep the email address associated with it private.</description>
+			</vbox>
+		</groupbox>
+
+  </wizardpage>
 
   <wizardpage id="pgImportSettings" pageid="pgImportSettings"
-              next="pgComplete"
+              next="pgUpload"
               onpageshow="disableNext(true);"
               onpageadvanced="return importSettings();"
               label="&enigmail.setupWiz.pgImportSettings.title;">

@@ -26,6 +26,10 @@ Components.utils.import("resource://enigmail/configBackup.jsm"); /*global Enigma
 Components.utils.import("resource://enigmail/keyRing.jsm"); /*global EnigmailKeyRing: false */
 Components.utils.import("resource://enigmail/installGnuPG.jsm"); /*global InstallGnuPG: false */
 Components.utils.import("resource://enigmail/passwordCheck.jsm"); /*global EnigmailPasswordCheck: false */
+Components.utils.import("resource://enigmail/execution.jsm"); /*global EnigmailExecution: false */
+Components.utils.import("resource://enigmail/gpgAgent.jsm"); /*global EnigmailGpgAgent: false */
+Components.utils.import("resource://enigmail/funcs.jsm"); /*global EnigmailFuncs: false */
+Components.utils.import("resource://enigmail/stdlib.jsm"); /*global EnigmailStdlib: false */
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -170,6 +174,9 @@ function onNext() {
       case "pgKeygen":
         setNextPage(onAfterPgKeygen());
         break;
+			case "pgUpload":
+        setNextPage(onAfterPgUpload());
+        break;
     }
   }
   return enableNext;
@@ -261,7 +268,7 @@ function onAfterPgKeySel() {
     return "pgKeyCreate";
   }
   else {
-    return "pgComplete";
+    return "pgUpload";
   }
 }
 
@@ -287,6 +294,10 @@ function onAfterPgKeyCreate() {
 }
 
 function onAfterPgKeygen() {
+  return "pgUpload";
+}
+
+function onAfterPgUpload() {
   return "pgComplete";
 }
 
@@ -1113,6 +1124,8 @@ function applyWizardSettings() {
 
   EnigSetPref("configuredVersion", EnigGetVersion());
   EnigmailPrefs.savePrefs();
+
+	keyUploadDo();
 }
 
 function applyMozSetting(preference, newVal) {
@@ -1374,4 +1387,129 @@ function doImportSettings() {
 
 function displayUnmatchedIds(emailArr) {
   EnigAlert(EnigGetString("setupWizard.unmachtedIds", ["- " + emailArr.join("\n- ")]));
+}
+
+function wizardUpload() {
+	disableNext(true);
+	keyUploadCheckAvailability()
+}
+
+function keyUploadCheckAvailability() {
+ 	var uidSel = document.getElementById("uidSelection");
+	var emailCol = uidSel.columns.getFirstColumn();
+	var uid = uidSel.view.getCellText(uidSel.currentIndex,emailCol).toString();
+	var wksListener = EnigmailExecution.newSimpleListener(null,function(ret) {
+		document.getElementById("keyUploadWksDeck").selectedIndex = 1;
+		if (ret === 0) {
+			document.getElementById("keyUploadWks").removeAttribute("disabled");
+			document.getElementById("keyUploadWks").setAttribute("checked", "true");
+			EnigmailLog.DEBUG("wks supported for " + uid + "\n");
+		} else {
+			document.getElementById("keyUploadWks").setAttribute("checked", "false");
+			document.getElementById("keyUploadWks").setAttribute("disabled", "true");
+			EnigmailLog.DEBUG("wks NOT supported for " + uid + "\n");
+		}
+		disableNext(false);
+	});
+	var confListener;
+
+	confListener = EnigmailExecution.newSimpleListener(null,function(ret) {
+		if (ret === 0) {
+			try {
+				var proc = EnigmailExecution.execStart(confListener.stdoutData.trim() + "/gpg-wks-client",["--supported",uid],false,window,wksListener,{value:null});
+				if (proc === null) {
+					document.getElementById("keyUploadWksDeck").selectedIndex = 1;
+					document.getElementById("keyUploadWks").setAttribute("disabled", "true");
+					document.getElementById("keyUploadWks").setAttribute("checked", "false");
+					disableNext(false);
+				}
+			} catch (e) {
+				document.getElementById("keyUploadWksDeck").selectedIndex = 1;
+				document.getElementById("keyUploadWks").setAttribute("disabled", "true");
+				document.getElementById("keyUploadWks").setAttribute("checked", "false");
+				disableNext(false);
+			}
+		} else {
+			document.getElementById("keyUploadWksDeck").selectedIndex = 1;
+			document.getElementById("keyUploadWks").setAttribute("disabled", "true");
+			document.getElementById("keyUploadWks").setAttribute("checked", "false");
+			disableNext(false);
+		}
+	});
+
+	document.getElementById("keyUploadWksDeck").selectedIndex = 0;
+	EnigmailExecution.execStart(EnigmailGpgAgent.gpgconfPath,["--list-dirs","libexecdir"],false,window,confListener,{value:null});
+}
+
+function keyUploadDo() {
+	var uidSel = document.getElementById("uidSelection");
+	var keyIdCol = uidSel.columns.getColumnAt(1);
+	var keyId = uidSel.view.getCellText(uidSel.currentIndex,keyIdCol).toString();
+	var key = EnigmailKeyRing.getKeyById(keyId);
+
+	if ( key !== null ) {
+		if (document.getElementById("keyUploadSks").getAttribute("checked") == "true") {
+			keyServerAccess(key,true);
+		}
+
+		if (document.getElementById("keyUploadWks").getAttribute("checked") == "true") {
+			keyServerAccess(key,false);
+		}
+	}
+}
+
+function keyServerAccess(key, useHkp) {
+  var resultObj = {};
+  var inputObj = {
+		keyId: key.fpr
+	};
+
+	if ( useHkp ) {
+		let autoKeyServer = EnigmailPrefs.getPref("autoKeyServerSelection") ? EnigmailPrefs.getPref("keyserver").split(/[ ,;]/g)[0] : null;
+		if (autoKeyServer) {
+			resultObj.value = autoKeyServer;
+		}
+		else {
+			window.openDialog("chrome://enigmail/content/enigmailKeyserverDlg.xul",
+				"", "dialog,modal,centerscreen", inputObj, resultObj);
+		}
+
+		if (!resultObj.value) {
+			return;
+		}
+	}
+
+  var keyDlObj = {
+		accessType: useHkp ? nsIEnigmail.UPLOAD_KEY : nsIEnigmail.UPLOAD_WKD,
+    keyServer: resultObj.value,
+    keyList: key.fpr,
+    cbFunc: function() {}
+  };
+
+  // UPLOAD_WKD needs a nsIMsgIdentity
+  if ( !useHkp ) {
+    try {
+      for ( let uid of key.userIds ) {
+        let email = EnigmailFuncs.stripEmail(uid.userId);
+        let maybeIdent = EnigmailStdlib.getIdentityForEmail(email);
+
+        if ( maybeIdent && maybeIdent.identity ) {
+          keyDlObj.senderIdent = maybeIdent.identity;
+          keyDlObj.keyFpr = key.fpr;
+          break;
+        }
+      }
+
+      if ( keyDlObj.senderIdent === undefined ) {
+        let uids = key.userIds.map(function(x) { return " - " + x.userId; }).join("\n");
+        EnigAlert(EnigmailLocale.getString("noWksIdentity",[uids]));
+        return;
+      }
+    } catch (ex) {
+      EnigmailLog.DEBUG(ex + "\n");
+    }
+  }
+
+  window.openDialog("chrome://enigmail/content/enigRetrieveProgress.xul",
+    "", "dialog,modal,centerscreen", keyDlObj, resultObj);
 }
