@@ -2788,69 +2788,80 @@ Enigmail.msg = {
       inputObj.options += ",";
       inputObj.dialogHeader = EnigmailLocale.getString("recipientsSelectionHdr");
 
-      // perform key selection dialog:
-      window.openDialog("chrome://enigmail/content/enigmailKeySelection.xul", "", "dialog,modal,centerscreen,resizable", inputObj, resultObj);
+      var tries = 0;
 
-      // process result from key selection dialog:
-      try {
-        // CANCEL:
-        if (resultObj.cancelled) {
-          return null;
+      while (tries < 2) {
+        if (tries === 0) {
+          window.openDialog("chrome://enigmail/content/enigmailLocateKeys.xul", "", "dialog,modal,centerscreen,resizable", inputObj, resultObj);
+        } else {
+          // perform key selection dialog:
+          window.openDialog("chrome://enigmail/content/enigmailKeySelection.xul", "", "dialog,modal,centerscreen,resizable", inputObj, resultObj);
         }
 
+				EnigmailLog.DEBUG(JSON.stringify(resultObj));
+        tries += 1;
 
-        // repeat checking of rules etc. (e.g. after importing new key)
-        if (resultObj.repeatEvaluation) {
-          // THIS is the place that triggers a second iteration
-          let returnObj = {
-            doRulesProcessingAgain: true,
-            createNewRule: false,
-            sendFlags: sendFlags,
-            toAddrStr: toAddrStr,
-            bccAddrStr: bccAddrStr
-          };
-
-          // "Create per recipient rule(s)":
-          if (resultObj.perRecipientRules && this.enableRules) {
-            // do an extra round because the user wants to set a PGP rule
-            returnObj.createNewRule = true;
+        // process result from key selection dialog:
+        try {
+          // CANCEL:
+          if (resultObj.cancelled) {
+            return null;
           }
 
-          return returnObj;
-        }
 
-        // process OK button:
-        if (resultObj.encrypt) {
-          sendFlags |= ENCRYPT; // should anyway be set
-          if (bccAddrList.length > 0) {
-            toAddrStr = "";
-            bccAddrStr = resultObj.userList.join(", ");
+          // repeat checking of rules etc. (e.g. after importing new key)
+          if (resultObj.repeatEvaluation) {
+            // THIS is the place that triggers a second iteration
+            let returnObj = {
+              doRulesProcessingAgain: true,
+              createNewRule: false,
+              sendFlags: sendFlags,
+              toAddrStr: toAddrStr,
+              bccAddrStr: bccAddrStr
+            };
+
+            // "Create per recipient rule(s)":
+            if (resultObj.perRecipientRules && this.enableRules) {
+              // do an extra round because the user wants to set a PGP rule
+              returnObj.createNewRule = true;
+            }
+
+            return returnObj;
+          }
+
+          // process OK button:
+          if (resultObj.encrypt) {
+            sendFlags |= ENCRYPT; // should anyway be set
+            if (bccAddrList.length > 0) {
+              toAddrStr = "";
+              bccAddrStr = resultObj.userList.join(", ");
+            }
+            else {
+              toAddrStr = resultObj.userList.join(", ");
+              bccAddrStr = "";
+            }
           }
           else {
-            toAddrStr = resultObj.userList.join(", ");
-            bccAddrStr = "";
+            // encryption explicitely turned off
+            sendFlags &= ~ENCRYPT;
+            // counts as forced non-encryption
+            // (no internal error if different state was processed before)
+            this.statusEncrypted = EnigmailConstants.ENIG_FINAL_NO;
+            this.statusEncryptedInStatusBar = EnigmailConstants.ENIG_FINAL_NO;
           }
+          if (resultObj.sign) {
+            sendFlags |= SIGN;
+          }
+          else {
+            sendFlags &= ~SIGN;
+          }
+          testCipher = "ok";
+          testExitCodeObj.value = 0;
         }
-        else {
-          // encryption explicitely turned off
-          sendFlags &= ~ENCRYPT;
-          // counts as forced non-encryption
-          // (no internal error if different state was processed before)
-          this.statusEncrypted = EnigmailConstants.ENIG_FINAL_NO;
-          this.statusEncryptedInStatusBar = EnigmailConstants.ENIG_FINAL_NO;
+        catch (ex) {
+          // cancel pressed -> don't send mail
+          return null;
         }
-        if (resultObj.sign) {
-          sendFlags |= SIGN;
-        }
-        else {
-          sendFlags &= ~SIGN;
-        }
-        testCipher = "ok";
-        testExitCodeObj.value = 0;
-      }
-      catch (ex) {
-        // cancel pressed -> don't send mail
-        return null;
       }
     }
     // If test encryption failed and never ask manually, turn off default encryption
