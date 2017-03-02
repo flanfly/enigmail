@@ -2788,8 +2788,15 @@ Enigmail.msg = {
       inputObj.options += ",";
       inputObj.dialogHeader = EnigmailLocale.getString("recipientsSelectionHdr");
 
-      // perform key selection dialog:
-      window.openDialog("chrome://enigmail/content/enigmailKeySelection.xul", "", "dialog,modal,centerscreen,resizable", inputObj, resultObj);
+      // try --auto-key-locate first
+      window.openDialog("chrome://enigmail/content/enigmailLocateKeys.xul", "",
+                        "dialog,modal,centerscreen,resizable", inputObj, resultObj);
+
+      if (!resultObj.foundKeys) {
+        // show key selection dialog, if that fails
+        window.openDialog("chrome://enigmail/content/enigmailKeySelection.xul", "",
+                          "dialog,modal,centerscreen,resizable", inputObj, resultObj);
+      }
 
       // process result from key selection dialog:
       try {
