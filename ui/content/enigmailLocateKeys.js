@@ -47,7 +47,6 @@ function onLoad() {
 				EnigmailLog.DEBUG(listener.stderrData);
 				if (ret === 0) {
 					EnigmailKeyRing.clearCache();
-						window.arguments[1].repeatEvaluation = true;
 				}
 				progressDlg.setAttribute("value", 100);
 				progressDlg.setAttribute("mode", "normal");
@@ -56,7 +55,7 @@ function onLoad() {
 			let proc = EnigmailExecution.execStart(EnigmailGpgAgent.agentPath, [
 				"--verbose",
 				"--auto-key-locate", "wkd,keyserver",
-				"--locate-keys", inArg], false, window, listener, {
+				"--locate-keys"].concat(inArg.split(",")), false, window, listener, {
 					value: null
 				});
 		} else {
