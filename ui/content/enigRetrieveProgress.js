@@ -112,46 +112,71 @@ function onLoad() {
 }
 
 function onLoadWkd(inArg) {
-  EnigmailLog.DEBUG("enigRetrieveProgress: onLoadWkd: ident=" + inArg.senderIdent.email + ", key=" + inArg.keyFpr + "\n");
   try {
     var statTxt = document.getElementById("dialog.status2");
-    statTxt.value = EnigmailLocale.getString("keyserverProgress.wksCheck");
+		statTxt.value = EnigmailLocale.getString("keyserverTitle.uploading");
     document.getElementById("progressWindow").setAttribute("title", EnigmailLocale.getString("keyserverTitle.uploading"));
 
     var progressDlg = document.getElementById("dialog.progress");
     progressDlg.setAttribute("mode", "undetermined");
 
-    EnigmailWks.isWksSupportedAsync(inArg.senderIdent.email, window, function(is_supported) {
-      if (msgProgress && msgProgress.processCanceledByUser) {
-        window.close();
-        return;
-      }
+		let uploads = [];
 
-      if (is_supported) {
-        statTxt.value = EnigmailLocale.getString("keyserverTitle.uploading");
+		// For each key fpr/sender identity pair, check whenever WKS is supported
+		// Result is an array of booleans
+		for(let i = 0; i < inArg.senderIdentities.length; i++) {
+			let keyFpr = inArg.fprList[i];
+			let senderIdent = inArg.senderIdentities[i];
 
-        EnigmailWks.submitKey(inArg.senderIdent, {
-          'fpr': inArg.keyFpr
-        }, window, function(success) {
-          if (success) {
-            progressDlg.setAttribute("value", 100);
-            progressDlg.setAttribute("mode", "normal");
-            EnigmailDialog.info(window, EnigmailLocale.getString("keyserverProgress.wksUploadCompleted"));
-            window.close();
-          }
-          else {
-            let errorMsg = EnigmailLocale.getString("keyserverProgress.wksUploadFailed");
-            window.close();
-            gEnigCallbackFunc(-1, errorMsg, true);
-          }
-        });
-      }
-      else {
-        var errorMsg = EnigmailLocale.getString("keyserverProgress.noWks");
-        window.close();
-        gEnigCallbackFunc(-1, errorMsg, true);
-      }
-    });
+			let was_uploaded = new Promise(function(resolve,reject) {
+				EnigmailLog.DEBUG("enigRetrieveProgress: onLoadWkd: ident=" + senderIdent.email + ", key=" + keyFpr + "\n");
+				EnigmailWks.isWksSupportedAsync(senderIdent.email, window, function(is_supported) {
+					if (msgProgress && msgProgress.processCanceledByUser) {
+						reject("canceled");
+					}
+
+					resolve(is_supported);
+				});
+			}).then(function(is_supported) {
+				if(is_supported) {
+					let keyFpr = inArg.fprList[i];
+					let senderIdent = inArg.senderIdentities[i];
+
+					return new Promise(function(resolve,reject) {
+						EnigmailWks.submitKey(senderIdent, {
+							'fpr': keyFpr
+						}, window, function(success) {
+							if (success) {
+								resolve(senderIdent);
+							} else {
+								reject();
+							}
+						});
+					});
+				} else {
+					return new Promise.resolve(null);
+				}
+			});
+
+			uploads.push(was_uploaded);
+		}
+
+		Promise.all(uploads).catch(function(reason) {
+			let errorMsg = EnigmailLocale.getString("keyserverProgress.wksUploadFailed");
+			window.close();
+			gEnigCallbackFunc(-1, errorMsg, true);
+		}).then(function(senders) {
+			let uploaded_uids = [];
+			senders.forEach(function(val) {
+				if(val !== null) {
+					uploaded_uids.push(val.email);
+				}
+			});
+			progressDlg.setAttribute("value", 100);
+			progressDlg.setAttribute("mode", "normal");
+			EnigmailDialog.info(window, EnigmailLocale.getString("keyserverProgress.wksUploadCompleted"));
+			window.close();
+		});
   }
   catch (ex) {
     EnigmailLog.DEBUG(ex);

@@ -2791,7 +2791,9 @@ Enigmail.msg = {
       var tries = 0;
 
       while (tries < 2) {
-        if (tries === 0) {
+        tries += 1;
+
+        if (tries == 1) {
           window.openDialog("chrome://enigmail/content/enigmailLocateKeys.xul", "", "dialog,modal,centerscreen,resizable", inputObj, resultObj);
         } else {
           // perform key selection dialog:
@@ -2799,7 +2801,6 @@ Enigmail.msg = {
         }
 
 				EnigmailLog.DEBUG(JSON.stringify(resultObj));
-        tries += 1;
 
         // process result from key selection dialog:
         try {

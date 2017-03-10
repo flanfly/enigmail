@@ -33,7 +33,7 @@ function onLoad() {
 		progressDlg.setAttribute("mode", "undetermined");
 
 		var inArg = window.arguments[0].toAddr.toString();
-		EnigmailLog.DEBUG("to: " + inArg + "\n");
+		EnigmailLog.DEBUG("enigmailLocateKeys.js: to: " + inArg + "\n");
 
 		var keys = EnigmailKeyRing.getKeysByUserId(inArg);
 
