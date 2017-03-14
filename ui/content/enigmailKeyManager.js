@@ -180,11 +180,12 @@ function enigmailKeyMenu() {
   if (keyList.length == 1 && gKeyList[keyList[0]].secretAvailable) {
     document.getElementById("bcRevoke").removeAttribute("collapsed");
     document.getElementById("bcEditKey").removeAttribute("collapsed");
+    document.getElementById("bcUploadToWkd").removeAttribute("collapsed");
   }
   else {
     document.getElementById("bcRevoke").setAttribute("collapsed", "true");
     document.getElementById("bcEditKey").setAttribute("collapsed", "true");
-    document.getElementById("bcUploadToWkd").setAttribute("disabled", "true");
+    document.getElementById("bcUploadToWkd").setAttribute("collapsed", "true");
   }
 
   if (keyList.length == 1 && gKeyList[keyList[0]].photoAvailable) {
