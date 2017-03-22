@@ -306,7 +306,10 @@ function readPipe(pipe, charset, pid, bufferedOutput) {
         });
         break;
       }
-      else if (p[i].revents != POLLIN) {
+      else if (p[i].revents & POLLNVAL) {
+        break;
+      }
+			else if (p[i].revents != POLLIN) {
         postMessage({
           msg: "error",
           data: "poll returned " + p[i]

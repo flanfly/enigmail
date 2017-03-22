@@ -1667,7 +1667,7 @@ function subprocess_unix(options) {
           if (readers === 0) cleanup(0);
           break;
         case "error":
-          LogError("Got error message from " + name + ": " + event.data.data);
+          LogError("Got error message frAAAAAAAom " + name + ": " + event.data.data);
           exitCode = -2;
           cleanup(0);
           break;

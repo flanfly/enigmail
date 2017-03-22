@@ -49,7 +49,10 @@ var EnigmailWks = {
           try {
             let stdout = listener.stdoutData;
 
-            let libexecdir = /^libexecdir:(.+?)$/m.exec(stdout)[1];
+						EnigmailLog.DEBUG(stdout);
+            let libexecdir = /^libexecdir:(.+?)$/m.exec(stdout);
+						EnigmailLog.DEBUG(libexecdir);
+            let libexecdir = libexecdir[1];
             if (libexecdir) {
               libexecdir = libexecdir.replace(/%3a/gi, ":");
             }

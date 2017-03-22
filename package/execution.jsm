@@ -238,6 +238,7 @@ const EnigmailExecution = {
 
     const proc = procBuilder.build();
     try {
+			subprocess.registerDebugHandler(function(s) { EnigmailLog.DEBUG("####################: " + s) });
       subprocess.call(proc).wait();
     }
     catch (ex) {
