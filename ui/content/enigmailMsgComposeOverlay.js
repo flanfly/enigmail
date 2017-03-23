@@ -2756,114 +2756,108 @@ Enigmail.msg = {
           toAddrStr.indexOf('@') >= 0) &&
         EnigmailPrefs.getPref("assignKeysManuallyIfMissing")) ||
       (details && details.errArray && details.errArray.length > 0)
-    ) {
+		) {
 
-      // check for invalid recipient keys
-      var resultObj = {};
-      var inputObj = {};
-      inputObj.toAddr = toAddrStr;
-      inputObj.invalidAddr = Enigmail.hlp.getInvalidAddress(testErrorMsgObj.value);
-      if (details && details.errArray && details.errArray.length > 0) {
-        inputObj.errArray = details.errArray;
-      }
+			// check for invalid recipient keys
+			var resultObj = {};
+			var inputObj = {};
+			inputObj.toAddr = toAddrStr;
+			inputObj.invalidAddr = Enigmail.hlp.getInvalidAddress(testErrorMsgObj.value);
+			if (details && details.errArray && details.errArray.length > 0) {
+				inputObj.errArray = details.errArray;
+			}
 
-      // prepare dialog options:
-      inputObj.options = "multisel";
-      if (EnigmailPrefs.getPref("assignKeysByRules")) {
-        inputObj.options += ",rulesOption"; // enable button to create per-recipient rule
-      }
-      if (EnigmailPrefs.getPref("assignKeysManuallyAlways")) {
-        inputObj.options += ",noforcedisp";
-      }
-      if (!(sendFlags & SIGN)) {
-        inputObj.options += ",unsigned";
-      }
-      if (this.trustAllKeys) {
-        inputObj.options += ",trustallkeys";
-      }
-      if (sendFlags & nsIEnigmail.SEND_LATER) {
-        let sendLaterLabel = EnigmailLocale.getString("sendLaterCmd.label");
-        inputObj.options += ",sendlabel=" + sendLaterLabel;
-      }
-      inputObj.options += ",";
-      inputObj.dialogHeader = EnigmailLocale.getString("recipientsSelectionHdr");
+			// prepare dialog options:
+			inputObj.options = "multisel";
+			if (EnigmailPrefs.getPref("assignKeysByRules")) {
+				inputObj.options += ",rulesOption"; // enable button to create per-recipient rule
+			}
+			if (EnigmailPrefs.getPref("assignKeysManuallyAlways")) {
+				inputObj.options += ",noforcedisp";
+			}
+			if (!(sendFlags & SIGN)) {
+				inputObj.options += ",unsigned";
+			}
+			if (this.trustAllKeys) {
+				inputObj.options += ",trustallkeys";
+			}
+			if (sendFlags & nsIEnigmail.SEND_LATER) {
+				let sendLaterLabel = EnigmailLocale.getString("sendLaterCmd.label");
+				inputObj.options += ",sendlabel=" + sendLaterLabel;
+			}
+			inputObj.options += ",";
+			inputObj.dialogHeader = EnigmailLocale.getString("recipientsSelectionHdr");
 
-      var tries = 0;
+			// try --auto-key-locate first
+			window.openDialog("chrome://enigmail/content/enigmailLocateKeys.xul", "", "dialog,modal,centerscreen,resizable", inputObj, resultObj);
 
-      while (tries < 2) {
-        if (tries === 0) {
-          window.openDialog("chrome://enigmail/content/enigmailLocateKeys.xul", "", "dialog,modal,centerscreen,resizable", inputObj, resultObj);
-        } else {
-          // perform key selection dialog:
-          window.openDialog("chrome://enigmail/content/enigmailKeySelection.xul", "", "dialog,modal,centerscreen,resizable", inputObj, resultObj);
-        }
+			if (!resultObj.foundKeys) {
+				// show key selection dialog, if that fails
+				window.openDialog("chrome://enigmail/content/enigmailKeySelection.xul", "", "dialog,modal,centerscreen,resizable", inputObj, resultObj);
+			}
 
-				EnigmailLog.DEBUG(JSON.stringify(resultObj));
-        tries += 1;
-
-        // process result from key selection dialog:
-        try {
-          // CANCEL:
-          if (resultObj.cancelled) {
-            return null;
-          }
+			// process result from key selection dialog:
+			try {
+				// CANCEL:
+				if (resultObj.cancelled) {
+					return null;
+				}
 
 
-          // repeat checking of rules etc. (e.g. after importing new key)
-          if (resultObj.repeatEvaluation) {
-            // THIS is the place that triggers a second iteration
-            let returnObj = {
-              doRulesProcessingAgain: true,
-              createNewRule: false,
-              sendFlags: sendFlags,
-              toAddrStr: toAddrStr,
-              bccAddrStr: bccAddrStr
-            };
+				// repeat checking of rules etc. (e.g. after importing new key)
+				if (resultObj.repeatEvaluation) {
+					// THIS is the place that triggers a second iteration
+					let returnObj = {
+						doRulesProcessingAgain: true,
+						createNewRule: false,
+						sendFlags: sendFlags,
+						toAddrStr: toAddrStr,
+						bccAddrStr: bccAddrStr
+					};
 
-            // "Create per recipient rule(s)":
-            if (resultObj.perRecipientRules && this.enableRules) {
-              // do an extra round because the user wants to set a PGP rule
-              returnObj.createNewRule = true;
-            }
+					// "Create per recipient rule(s)":
+					if (resultObj.perRecipientRules && this.enableRules) {
+						// do an extra round because the user wants to set a PGP rule
+						returnObj.createNewRule = true;
+					}
 
-            return returnObj;
-          }
+					return returnObj;
+				}
 
-          // process OK button:
-          if (resultObj.encrypt) {
-            sendFlags |= ENCRYPT; // should anyway be set
-            if (bccAddrList.length > 0) {
-              toAddrStr = "";
-              bccAddrStr = resultObj.userList.join(", ");
-            }
-            else {
-              toAddrStr = resultObj.userList.join(", ");
-              bccAddrStr = "";
-            }
-          }
-          else {
-            // encryption explicitely turned off
-            sendFlags &= ~ENCRYPT;
-            // counts as forced non-encryption
-            // (no internal error if different state was processed before)
-            this.statusEncrypted = EnigmailConstants.ENIG_FINAL_NO;
-            this.statusEncryptedInStatusBar = EnigmailConstants.ENIG_FINAL_NO;
-          }
-          if (resultObj.sign) {
-            sendFlags |= SIGN;
-          }
-          else {
-            sendFlags &= ~SIGN;
-          }
-          testCipher = "ok";
-          testExitCodeObj.value = 0;
-        }
-        catch (ex) {
-          // cancel pressed -> don't send mail
-          return null;
-        }
-      }
-    }
+				// process OK button:
+				if (resultObj.encrypt) {
+					sendFlags |= ENCRYPT; // should anyway be set
+					if (bccAddrList.length > 0) {
+						toAddrStr = "";
+						bccAddrStr = resultObj.userList.join(", ");
+					}
+					else {
+						toAddrStr = resultObj.userList.join(", ");
+						bccAddrStr = "";
+					}
+				}
+				else {
+					// encryption explicitely turned off
+					sendFlags &= ~ENCRYPT;
+					// counts as forced non-encryption
+					// (no internal error if different state was processed before)
+					this.statusEncrypted = EnigmailConstants.ENIG_FINAL_NO;
+					this.statusEncryptedInStatusBar = EnigmailConstants.ENIG_FINAL_NO;
+				}
+				if (resultObj.sign) {
+					sendFlags |= SIGN;
+				}
+				else {
+					sendFlags &= ~SIGN;
+				}
+				testCipher = "ok";
+				testExitCodeObj.value = 0;
+			}
+			catch (ex) {
+				// cancel pressed -> don't send mail
+				return null;
+			}
+		}
     // If test encryption failed and never ask manually, turn off default encryption
     if ((!testCipher || (testExitCodeObj.value !== 0)) &&
       !EnigmailPrefs.getPref("assignKeysManuallyIfMissing") &&

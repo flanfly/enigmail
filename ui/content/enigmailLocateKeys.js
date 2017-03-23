@@ -45,8 +45,13 @@ function onLoad() {
 			let listener = EnigmailExecution.newSimpleListener(null, function(ret) {
 				EnigmailLog.DEBUG(listener.stdoutData);
 				EnigmailLog.DEBUG(listener.stderrData);
-				if (ret === 0) {
+				let imported = listener.stdoutData.includes("IMPORT_OK");
+				if (ret === 0 && imported) {
 					EnigmailKeyRing.clearCache();
+					window.arguments[1] = {
+						'repeatEvaluation' true,
+						'foundKeys': true
+					};
 				}
 				progressDlg.setAttribute("value", 100);
 				progressDlg.setAttribute("mode", "normal");
@@ -54,7 +59,8 @@ function onLoad() {
 			});
 			let proc = EnigmailExecution.execStart(EnigmailGpgAgent.agentPath, [
 				"--verbose",
-				"--auto-key-locate", "wkd,keyserver",
+				"--status-fd", "1",
+				"--auto-key-locate", "wkd",
 				"--locate-keys"].concat(inArg.split(",")), false, window, listener, {
 					value: null
 				});
