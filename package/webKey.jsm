@@ -163,7 +163,7 @@ var EnigmailWks = {
             deliveryType: Ci.nsIMsgCompDeliverMode.Now
           }, {
             match: function(x) {
-              x.plainText(listener.stdoutData);
+							x.plainText(listener.stdoutData.replace(/\r\n/g, "\n"));
             }
           }, {}, {});
 
@@ -233,7 +233,7 @@ var EnigmailWks = {
               deliveryType: Ci.nsIMsgCompDeliverMode.Now
             }, {
               match: function(x) {
-                x.plainText(listener.stdoutData);
+								x.plainText(listener.stdoutData.replace(/\r\n/g, "\n"));
               }
             }, {}, {});
 
