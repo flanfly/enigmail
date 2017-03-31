@@ -19,6 +19,7 @@ Cu.import("resource://enigmail/core.jsm"); /*global EnigmailCore: false */
 Cu.import("resource://enigmail/locale.jsm"); /*global EnigmailLocale: false */
 Cu.import("resource://enigmail/keyRing.jsm"); /*global EnigmailKeyRing: false */
 Cu.import("resource://enigmail/rules.jsm"); /*global EnigmailRules: false */
+Cu.import("resource://enigmail/prefs.jsm"); /*global EnigmailPrefs: false */
 Cu.import("resource://enigmail/pEpAdapter.jsm"); /*global EnigmailPEPAdapter: false */
 Cu.import("resource://gre/modules/PromiseUtils.jsm"); /* global PromiseUtils: false */
 
@@ -558,6 +559,92 @@ const EnigmailWindows = {
   },
 
   /**
+   * TODO
+   *
+   * @win        - |object| holding the parent window for the dialog
+   * @inputObj   - |object| with member searchList (|string| containing the keys to search)
+   * @resultObj  - |object| with member importedKeys (|number| containing the number of imporeted keys)
+   *
+   * no return value
+   */
+  accessKeyServer: function(win, keys, access, callbackFunc, resultObj) {
+    EnigmailLog.DEBUG("windows.jsm: uploadKey: keyId=" + keys.map(function(s) { return s.keyId; }).join(", ") + "\n");
+
+    const nsIEnigmail = Components.interfaces.nsIEnigmail;
+    const ioService = Cc[IOSERVICE_CONTRACTID].getService(Ci.nsIIOService);
+    if (ioService && ioService.offline) {
+      EnigmailWindows.alert(win, EnigmailLocale.getString("needOnline"));
+      return;
+    }
+
+    let keyDlObj = {
+      accessType: access,
+      keyServer: resultObj.value,
+      keyList: keys.map(function(x) { return x.keyId; }),
+      fprList: [],
+      senderIdentities: [],
+      cbFunc: callbackFunc
+    };
+
+    if (nsIEnigmail.UPLOAD_WKD === access) {
+      for(let key of keys) {
+        // UPLOAD_WKD needs a nsIMsgIdentity
+        try {
+          for (let uid of key.userIds) {
+            let email = EnigmailFuncs.stripEmail(uid.userId);
+            let maybeIdent = EnigmailStdlib.getIdentityForEmail(email);
+
+            if (maybeIdent && maybeIdent.identity) {
+              keyDlObj.senderIdentities.push(maybeIdent.identity);
+              keyDlObj.fprList.push(key.fpr);
+            }
+          }
+
+          if (keyDlObj.senderIdentities.length === 0) {
+            let uids = key.userIds.map(function(x) {
+              return " - " + x.userId;
+            }).join("\n");
+            EnigAlert(EnigmailLocale.getString("noWksIdentity", [uids]));
+            return;
+          }
+        }
+        catch (ex) {
+          EnigmailLog.DEBUG(ex + "\n");
+        }
+      }
+    }
+    else {
+      let autoKeyServer = EnigmailPrefs.getPref("autoKeyServerSelection") ? EnigmailPrefs.getPref("keyserver").split(/[ ,;]/g)[0] : null;
+      if (autoKeyServer) {
+        keyDlObj.keyServer = autoKeyServer;
+      }
+      else {
+        let inputObj = {};
+        let resultObj = {};
+        if (accessType != nsIEnigmail.REFRESH_KEY) {
+          inputObj.upload = true;
+          inputObj.keyId = keys.map(function(x) { return "0x" + x.keyId.toString(); }).join(", ");
+        }
+        else {
+          inputObj.upload = false;
+          inputObj.keyId = "";
+        }
+
+        win.openDialog("chrome://enigmail/content/enigmailKeyserverDlg.xul",
+            "", "dialog,modal,centerscreen", inputObj, resultObj);
+        keyDlObj.keyServer = resultObj.value;
+      }
+
+      if (!keyDlObj.keyServer) {
+        return;
+      }
+    }
+
+    win.openDialog("chrome://enigmail/content/enigRetrieveProgress.xul",
+      "", "dialog,modal,centerscreen", keyDlObj, resultObj);
+  },
+
+  /**
    * Open the Trustwords dialog for a specific pair of keys
    *
    * @param win:          Object - nsIWindow
@@ -603,6 +690,5 @@ const EnigmailWindows = {
 
     window.openDialog("chrome://enigmail/content/pepHandshake.xul",
       "", "dialog,modal,centerscreen", inputObj);
-
   }
 };

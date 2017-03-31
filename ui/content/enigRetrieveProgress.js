@@ -189,7 +189,7 @@ function onLoadGpg(inArg) {
   EnigmailLog.DEBUG("enigRetrieveProgress: onLoadGpg\n");
   var subject;
   var statTxt = document.getElementById("dialog.status2");
-  if (inArg.accessType == nsIEnigmail.UPLOAD_KEY) {
+  if (inArg.accessType == nsIEnigmail.UPLOAD_KEY || inArg.accessType == nsIEnigmail.UPLOAD_WKD) {
     statTxt.value = EnigmailLocale.getString("keyserverProgress.uploading");
     subject = EnigmailLocale.getString("keyserverTitle.uploading");
   }

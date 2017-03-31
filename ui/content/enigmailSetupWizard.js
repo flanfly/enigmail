@@ -30,6 +30,8 @@ Components.utils.import("resource://enigmail/execution.jsm"); /*global EnigmailE
 Components.utils.import("resource://enigmail/gpgAgent.jsm"); /*global EnigmailGpgAgent: false */
 Components.utils.import("resource://enigmail/funcs.jsm"); /*global EnigmailFuncs: false */
 Components.utils.import("resource://enigmail/stdlib.jsm"); /*global EnigmailStdlib: false */
+Components.utils.import("resource://enigmail/webKey.jsm"); /*global EnigmailWks: false */
+Components.utils.import("resource://enigmail/windows.jsm"); /*global EnigmailWindows: false */
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -1434,12 +1436,20 @@ function wizardUpload() {
 }
 
 function keyUploadCheckAvailability() {
- 	var uidSel = document.getElementById("uidSelection");
-	var emailCol = uidSel.columns.getFirstColumn();
-	var uid = uidSel.view.getCellText(uidSel.currentIndex,emailCol).toString();
-	var wksListener = EnigmailExecution.newSimpleListener(null,function(ret) {
+	if ( gGeneratedKey === null ) {
+		var uidSel = document.getElementById("uidSelection");
+		var keyIdCol = uidSel.columns.getColumnAt(1);
+		var keyId = uidSel.view.getCellText(uidSel.currentIndex,keyIdCol).toString();
+	} else {
+		var keyId = gGeneratedKey;
+	}
+	var key = EnigmailKeyRing.getKeyById(keyId);
+	var uid = key.userIds[0].userId;
+
+	document.getElementById("keyUploadWksDeck").selectedIndex = 0;
+	EnigmailWks.isWksSupportedAsync(uid, window, function(is_supported) {
 		document.getElementById("keyUploadWksDeck").selectedIndex = 1;
-		if (ret === 0) {
+		if (is_supported) {
 			document.getElementById("keyUploadWks").removeAttribute("disabled");
 			document.getElementById("keyUploadWks").setAttribute("checked", "true");
 			EnigmailLog.DEBUG("wks supported for " + uid + "\n");
@@ -1450,40 +1460,16 @@ function keyUploadCheckAvailability() {
 		}
 		disableNext(false);
 	});
-	var confListener;
-
-	confListener = EnigmailExecution.newSimpleListener(null,function(ret) {
-		if (ret === 0) {
-			try {
-				var proc = EnigmailExecution.execStart(confListener.stdoutData.trim() + "/gpg-wks-client",["--supported",uid],false,window,wksListener,{value:null});
-				if (proc === null) {
-					document.getElementById("keyUploadWksDeck").selectedIndex = 1;
-					document.getElementById("keyUploadWks").setAttribute("disabled", "true");
-					document.getElementById("keyUploadWks").setAttribute("checked", "false");
-					disableNext(false);
-				}
-			} catch (e) {
-				document.getElementById("keyUploadWksDeck").selectedIndex = 1;
-				document.getElementById("keyUploadWks").setAttribute("disabled", "true");
-				document.getElementById("keyUploadWks").setAttribute("checked", "false");
-				disableNext(false);
-			}
-		} else {
-			document.getElementById("keyUploadWksDeck").selectedIndex = 1;
-			document.getElementById("keyUploadWks").setAttribute("disabled", "true");
-			document.getElementById("keyUploadWks").setAttribute("checked", "false");
-			disableNext(false);
-		}
-	});
-
-	document.getElementById("keyUploadWksDeck").selectedIndex = 0;
-	EnigmailExecution.execStart(EnigmailGpgAgent.gpgconfPath,["--list-dirs","libexecdir"],false,window,confListener,{value:null});
 }
 
 function keyUploadDo() {
-	var uidSel = document.getElementById("uidSelection");
-	var keyIdCol = uidSel.columns.getColumnAt(1);
-	var keyId = uidSel.view.getCellText(uidSel.currentIndex,keyIdCol).toString();
+	if ( gGeneratedKey === null ) {
+		var uidSel = document.getElementById("uidSelection");
+		var keyIdCol = uidSel.columns.getColumnAt(1);
+		var keyId = uidSel.view.getCellText(uidSel.currentIndex,keyIdCol).toString();
+	} else {
+		var keyId = gGeneratedKey;
+	}
 	var key = EnigmailKeyRing.getKeyById(keyId);
 
 	if ( key !== null ) {
@@ -1498,58 +1484,15 @@ function keyUploadDo() {
 }
 
 function keyServerAccess(key, useHkp) {
-  var resultObj = {};
-  var inputObj = {
-		keyId: key.fpr
-	};
- 	var keyDlObj = {
-		accessType: useHkp ? nsIEnigmail.UPLOAD_KEY : nsIEnigmail.UPLOAD_WKD,
-    keyServer: resultObj.value,
-    fprList: [],
-    senderIdentities: [],
-	 	keyList: key.fpr,
-    cbFunc: function() {}
-  };
+  let resultObj = {};
+  let accessType = 0;
 
-	if ( useHkp ) {
-		let autoKeyServer = EnigmailPrefs.getPref("autoKeyServerSelection") ? EnigmailPrefs.getPref("keyserver").split(/[ ,;]/g)[0] : null;
-		if (autoKeyServer) {
-			resultObj.value = autoKeyServer;
-		}
-		else {
-			window.openDialog("chrome://enigmail/content/enigmailKeyserverDlg.xul",
-				"", "dialog,modal,centerscreen", inputObj, resultObj);
-		}
-
-		if (!resultObj.value) {
-			return;
-		}
-	} else {
-  	// UPLOAD_WKD needs a nsIMsgIdentity
-    try {
-      for (let uid of key.userIds) {
-        let email = EnigmailFuncs.stripEmail(uid.userId);
-        let maybeIdent = EnigmailStdlib.getIdentityForEmail(email);
-
-        if (maybeIdent && maybeIdent.identity) {
-          keyDlObj.senderIdentities.push(maybeIdent.identity);
-          keyDlObj.fprList.push(key.fpr);
-        }
-      }
-
-      if (keyDlObj.senderIdentities.length === 0) {
-        let uids = key.userIds.map(function(x) {
-          return " - " + x.userId;
-        }).join("\n");
-        EnigAlert(EnigmailLocale.getString("noWksIdentity", [uids]));
-        return;
-      }
-    }
-    catch (ex) {
-      EnigmailLog.DEBUG(ex + "\n");
-    }
+  if (useHkp) {
+    accessType = nsIEnigmail.UPLOAD_KEY;
+  }
+  else {
+    accessType = nsIEnigmail.UPLOAD_WKD;
   }
 
-  window.openDialog("chrome://enigmail/content/enigRetrieveProgress.xul",
-    "", "dialog,modal,centerscreen", keyDlObj, resultObj);
+  EnigmailWindows.accessKeyServer(window, [key], accessType, function() {}, resultObj);
 }
