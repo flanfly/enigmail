@@ -1502,6 +1502,14 @@ function keyServerAccess(key, useHkp) {
   var inputObj = {
 		keyId: key.fpr
 	};
+ 	var keyDlObj = {
+		accessType: useHkp ? nsIEnigmail.UPLOAD_KEY : nsIEnigmail.UPLOAD_WKD,
+    keyServer: resultObj.value,
+    fprList: [],
+    senderIdentities: [],
+	 	keyList: key.fpr,
+    cbFunc: function() {}
+  };
 
 	if ( useHkp ) {
 		let autoKeyServer = EnigmailPrefs.getPref("autoKeyServerSelection") ? EnigmailPrefs.getPref("keyserver").split(/[ ,;]/g)[0] : null;
@@ -1516,35 +1524,28 @@ function keyServerAccess(key, useHkp) {
 		if (!resultObj.value) {
 			return;
 		}
-	}
-
-  var keyDlObj = {
-		accessType: useHkp ? nsIEnigmail.UPLOAD_KEY : nsIEnigmail.UPLOAD_WKD,
-    keyServer: resultObj.value,
-    keyList: key.fpr,
-    cbFunc: function() {}
-  };
-
-  // UPLOAD_WKD needs a nsIMsgIdentity
-  if ( !useHkp ) {
+	} else {
+  	// UPLOAD_WKD needs a nsIMsgIdentity
     try {
-      for ( let uid of key.userIds ) {
+      for (let uid of key.userIds) {
         let email = EnigmailFuncs.stripEmail(uid.userId);
         let maybeIdent = EnigmailStdlib.getIdentityForEmail(email);
 
-        if ( maybeIdent && maybeIdent.identity ) {
-          keyDlObj.senderIdent = maybeIdent.identity;
-          keyDlObj.keyFpr = key.fpr;
-          break;
+        if (maybeIdent && maybeIdent.identity) {
+          keyDlObj.senderIdentities.push(maybeIdent.identity);
+          keyDlObj.fprList.push(key.fpr);
         }
       }
 
-      if ( keyDlObj.senderIdent === undefined ) {
-        let uids = key.userIds.map(function(x) { return " - " + x.userId; }).join("\n");
-        EnigAlert(EnigmailLocale.getString("noWksIdentity",[uids]));
+      if (keyDlObj.senderIdentities.length === 0) {
+        let uids = key.userIds.map(function(x) {
+          return " - " + x.userId;
+        }).join("\n");
+        EnigAlert(EnigmailLocale.getString("noWksIdentity", [uids]));
         return;
       }
-    } catch (ex) {
+    }
+    catch (ex) {
       EnigmailLog.DEBUG(ex + "\n");
     }
   }
