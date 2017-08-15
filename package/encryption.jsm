@@ -15,6 +15,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
+Cu.import("resource://enigmail/lazy.jsm"); /*global EnigmailLazy: false */
 Cu.import("resource://enigmail/core.jsm");
 Cu.import("resource://enigmail/data.jsm"); /*global EnigmailData: false */
 Cu.import("resource://enigmail/log.jsm");
@@ -31,6 +32,7 @@ Cu.import("resource://enigmail/passwords.jsm"); /*global EnigmailPassword: false
 Cu.import("resource://enigmail/funcs.jsm"); /*global EnigmailFuncs: false */
 Cu.import("resource://enigmail/keyRing.jsm"); /*global EnigmailKeyRing: false */
 
+const getGpgAgent = EnigmailLazy.loader("enigmail/gpgAgent.jsm", "EnigmailGpgAgent");
 const nsIEnigmail = Ci.nsIEnigmail;
 
 var EC = EnigmailCore;
@@ -272,7 +274,7 @@ const EnigmailEncryption = {
 
     var signMsg = sendFlags & nsIEnigmail.SEND_SIGNED;
 
-    var proc = EnigmailExecution.execStart(EnigmailGpgAgent.agentPath, encryptArgs, signMsg, win, listener, statusFlagsObj);
+    var proc = EnigmailExecution.execStart(getGpgAgent().agentPath, encryptArgs, signMsg, win, listener, statusFlagsObj);
 
     if (statusFlagsObj.value & nsIEnigmail.MISSING_PASSPHRASE) {
       EnigmailLog.ERROR("encryption.jsm: encryptMessageStart: Error - no passphrase supplied\n");

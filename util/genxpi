@@ -80,6 +80,7 @@ zip --must-match\
     modules/data.jsm \
     modules/decryption.jsm \
     modules/decryptPermanently.jsm \
+    modules/encryptPermanently.jsm \
     modules/dialog.jsm \
     modules/encryption.jsm \
     modules/core.jsm \

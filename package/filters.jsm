@@ -18,11 +18,13 @@ const Cu = Components.utils;
 Cu.import("resource://enigmail/lazy.jsm");
 Cu.import("resource://enigmail/locale.jsm");
 Cu.import("resource://enigmail/core.jsm");
-Cu.import("resource://enigmail/decryptPermanently.jsm");
+Cu.import("resource://enigmail/decryptPermanently.jsm"); /* global EnigmailDecryptPermanently: false */
+Cu.import("resource://enigmail/encryptPermanently.jsm"); /* global EnigmailEncryptPermanently: false */
 Cu.import("resource://enigmail/log.jsm");
 Cu.import("resource://enigmail/funcs.jsm"); /* global EnigmailFuncs: false */
 Cu.import("resource://enigmail/streams.jsm"); /* global EnigmailStreams: false */
 Cu.import("resource://enigmail/constants.jsm"); /* global EnigmailConstants: false */
+Cu.import("resource://enigmail/keyRing.jsm"); /* global EnigmailKeyRing: false */
 Cu.import("resource:///modules/jsmime.jsm"); /*global jsmime: false*/
 
 
@@ -98,6 +100,59 @@ const filterActionCopyDecrypt = {
   validateActionValue: function(value, folder, type) {
     if (value === "") {
       return EnigmailLocale.getString("filter.folderRequired");
+    }
+
+    return null;
+  },
+
+  allowDuplicates: false,
+  isAsync: true,
+  needsBody: true
+};
+
+/**
+ * filter action for to encrypt a mail to a specific key
+ */
+const filterActionEncrypt = {
+  id: EnigmailConstants.FILTER_ENCRYPT,
+  name: EnigmailLocale.getString("filter.encrypt.label"),
+  apply: function(aMsgHdrs, aActionValue, aListener, aType, aMsgWindow) {
+    EnigmailLog.DEBUG("filters.jsm: filterActionEncrypt: Encrypt to: " + aActionValue + "\n");
+
+    var msgHdrs = [];
+
+    for (var i = 0; i < aMsgHdrs.length; i++) {
+			let msg = aMsgHdrs.queryElementAt(i, Ci.nsIMsgDBHdr);
+
+			EnigmailDecryptPermanently.decryptMessage(msg,msg.folder.folderURL,true)
+				.then(function(value) {
+					EnigmailLog.DEBUG("decrypt: " + JSON.stringify(value) + "\n");
+					let newMsg = msg.folder.GetMessageHeader(value);
+					EnigmailEncryptPermanently.encryptMessage(newMsg,aActionValue);
+			});
+    }
+  },
+
+  isValidForType: function(type, scope) {
+    return true;
+  },
+
+  validateActionValue: function(value, folder, type) {
+
+    EnigmailLog.DEBUG("filters.jsm: validateActionValue: Encrypt to: " + value + "\n");
+    if (value === "") {
+      return EnigmailLocale.getString("filter.keyRequired");
+    }
+
+    let keyFound = EnigmailKeyRing.getKeyById(value);
+
+    if (keyFound === null) {
+      EnigmailLog.DEBUG("filters.jsm: failed to find key by id: " + value + "\n");
+      keyFound = EnigmailKeyRing.getValidKeyForRecipient(value);
+    }
+
+    if (keyFound === null) {
+      return EnigmailLocale.getString("filter.keyNotFound", [value]);
     }
 
     return null;
@@ -316,6 +371,7 @@ const EnigmailFilters = {
     var filterService = Cc["@mozilla.org/messenger/services/filters;1"].getService(Ci.nsIMsgFilterService);
     filterService.addCustomAction(filterActionMoveDecrypt);
     filterService.addCustomAction(filterActionCopyDecrypt);
+    filterService.addCustomAction(filterActionEncrypt);
     initNewMailListener();
   },
 

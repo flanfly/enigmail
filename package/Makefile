@@ -34,6 +34,7 @@ MODFILES = \
            data.jsm \
            decryption.jsm \
            decryptPermanently.jsm \
+           encryptPermanently.jsm \
            dialog.jsm \
            encryption.jsm \
            errorHandling.jsm \
